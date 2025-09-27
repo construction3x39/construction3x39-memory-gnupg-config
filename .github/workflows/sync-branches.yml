@@ -1,0 +1,76 @@
+name: 🌙 Sync moon-terroir with dev-unstable
+
+on:
+  push:
+    branches: [ moon-terroir ]
+  workflow_dispatch:
+    inputs:
+      force_sync:
+        description: 'Force sync even if branches are identical'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: 🌙 Checkout moon-terroir
+        uses: actions/checkout@v4
+        with:
+          ref: moon-terroir
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 🔄 Sync to dev-unstable
+        run: |
+          echo "🌙 Syncing moon-terroir → dev-unstable"
+          
+          # Configure git
+          git config --global user.name "construction3x39"
+          git config --global user.email "construction3x39@gmail.com"
+          
+          # Check if dev-unstable exists
+          if git ls-remote --heads origin dev-unstable | grep -q dev-unstable; then
+            echo "📋 dev-unstable branch exists, checking for differences..."
+            
+            # Fetch dev-unstable
+            git fetch origin dev-unstable
+            
+            # Check if branches are identical
+            if git diff --quiet moon-terroir origin/dev-unstable; then
+              echo "✅ Branches are identical, no sync needed"
+              if [ "${{ github.event.inputs.force_sync }}" != "true" ]; then
+                echo "🚫 Skipping sync (use force_sync to override)"
+                exit 0
+              fi
+            fi
+            
+            # Force push to dev-unstable
+            git push origin moon-terroir:dev-unstable --force
+            echo "🔄 Force synced moon-terroir → dev-unstable"
+          else
+            echo "📋 dev-unstable branch doesn't exist, creating it..."
+            git push origin moon-terroir:dev-unstable
+            echo "🆕 Created dev-unstable branch from moon-terroir"
+          fi
+      
+      - name: 📊 Create sync summary
+        run: |
+          echo "## 🌙 Branch Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Source Branch:** \`moon-terroir\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Branch:** \`dev-unstable\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Sync Type:** Force mirror" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Latest Commits" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          git log --oneline -5 >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Sync completed successfully!**" >> $GITHUB_STEP_SUMMARY
